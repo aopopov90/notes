@@ -357,7 +357,7 @@ ETCDCTL_API=3 etcdctl \
   get /registry/secrets/default/creds
 ```
 
-## Encrypting secrets in ETCD
+## Encrypting secrets in ETCD (at rest)
 
 Encrypt all existing secrets using **aescbc** and a password of our choice.
 
@@ -413,3 +413,176 @@ However, newly created secrets will be encrypted.
 To encrypt all existing secrets just recreate them.
 If you make a config change to a provider object (such as comment out the identity field) in the `EncryptionConfiguration`, 
 kube-apiserver will no longer be able to read existing secrets.
+
+To recreate all secrets run:
+```bash
+kubectl get secrets --all-namespaces -o json | kubectl replace -f -
+```
+The output should be encrypted and prefixed with k8s:enc:aesgcm:v1:key1.
+After this, can delete the identity provider from the config.
+
+Note: in production it's best not to store an encr key directly on the master node. It's better to use an external KMS plugin.
+
+## Interacting with Kernel from a container
+
+Below demonstrates that the same Kernel version is shown when executed both from a container and a master
+```bash
+# create a pod and connect
+k run pod --image=nginx
+k exec pod -it -- bash
+
+# get Kernel version
+uname -r
+
+# execute the same on a master node directly (will be the same)
+exit
+uname -r
+
+# see kernel calls
+strace uname -r
+```
+
+## Create and use RuntimeClasses for runtime runsc (gVisor)
+
+```bash
+# search 'runtime class' on k8s docs
+# adapt an example by setting 'handler' to 'runsc'
+cat <<EOF > rc.yaml
+apiVersion: node.k8s.io/v1
+kind: RuntimeClass
+metadata:
+  name: gvisor
+handler: runsc 
+EOF
+
+k create -f rc.yaml
+
+# then create a pod and specify '.spec.runtimeClassName=gvisor'
+# the pod will be stuck
+# Warning  FailedCreatePodSandBox  2s (x2 over 15s)  kubelet            Failed to create pod sandbox: rpc error: code = Unknown desc = failed to get sandbox runtime: no runtime for "runsc" is configured
+```
+
+Now need to install runsc on nodes (optional for the CKS exam)
+```bash
+# install gvisor on a node
+bash <(curl -s https://raw.githubusercontent.com/killer-sh/cks-course-environment/master/course-content/microservice-vulnerabilities/container-runtimes/gvisor/install_gvisor.sh)
+
+# check containerd and kubelet statuses
+service containerd status
+service kubelet status
+
+# pod should be running now
+# connect to the pod and check kernel version (should be different from the node kernel, e.g `4.4.0`)
+k exec -it gvisor -- uname -r
+
+# verify gvisor is running
+k exec -it gvisor -- dmesg
+```
+
+## Security Context
+
+Check default.
+```bash
+# run a pod with a command 
+k run pod --image busybox --command -o yaml --dry-run=client > pod.yaml -- sh -c 'sleep 1d'
+
+# run 'id'
+# should see:
+# id=0(root) gid=0(root) groups=10(wheel)
+k exec -it pod -- id
+# create a file and check perms (will be owned by root)
+```
+
+Now inject security context:
+```yaml
+spec:
+  securityContext:
+    runAsUser: 1000
+    runAsGroup: 3000
+```
+Test
+```bash
+# run 'id'
+# should see 'uid=1000 gid=3000'
+# should not be able to create a file (except /tmp/)
+```
+
+Now indicate that containers must run as non-run:
+```yaml
+  containers:
+  - securityContext:
+      runAsNonRoot: true
+```
+If you delete pod level security context (i.e. sets a non-root user) it will try to run as root and will fail.
+
+## Privileged containers
+
+Enable privileged and test using sysctl.
+```bash
+# run the pod as root
+# try executing sysctl
+k exec -it pod -- sysctl kernel.hostname=attacker
+# this will fail:
+# sysctl: error setting key 'kernel.hostname': Read-only file system
+```
+Now make it privileged:
+```yaml
+spec:
+  containers:
+  - securityContext:
+      privileged: true
+```
+Should be able to access Kernel:
+```bash
+k exec pod -- sysctl kernel.hostname=attacker
+```
+
+## Disable Privilege Escalation
+
+k8s has this enabled by default.
+So first verify it (with `allowPrivilegeEscalation: true` or with no changes):
+```bash
+cat /proc/1/status | grep NoNewPrivs
+# should see - 0
+```
+Now set `allowPrivilegeEscalation: false` and repeat the test. Should see "NoNewPrivs:     1"
+
+## Create a proxy sidecar with NET_ADMIN capability
+
+Create a simple pod that pings Google:
+```bash
+k run app --image=bash --command -oyaml --dry-run=client > app.yaml -- sh -c 'ping google.com'
+```
+
+Add a sidecar container with iptables and capabilities defined:
+```yaml
+  - name: proxy
+    image: ubuntu
+    securityContext:
+      capabilities:
+        add: ["NET_ADMIN"]
+    command:
+    - sh
+    - -c
+    - 'apt-get update && apt-get install iptables -y && iptables -L && sleep 1d'
+```
+
+Deploy the pod and check sidecar log. Should see the following:
+```
+Setting up iptables (1.8.7-1ubuntu5.1) ...
+update-alternatives: using /usr/sbin/iptables-legacy to provide /usr/sbin/iptables (iptables) in auto mode
+update-alternatives: using /usr/sbin/ip6tables-legacy to provide /usr/sbin/ip6tables (ip6tables) in auto mode
+update-alternatives: using /usr/sbin/iptables-nft to provide /usr/sbin/iptables (iptables) in auto mode
+update-alternatives: using /usr/sbin/ip6tables-nft to provide /usr/sbin/ip6tables (ip6tables) in auto mode
+update-alternatives: using /usr/sbin/arptables-nft to provide /usr/sbin/arptables (arptables) in auto mode
+update-alternatives: using /usr/sbin/ebtables-nft to provide /usr/sbin/ebtables (ebtables) in auto mode
+Processing triggers for libc-bin (2.35-0ubuntu3.6) ...
+Chain INPUT (policy ACCEPT)
+target     prot opt source               destination         
+
+Chain FORWARD (policy ACCEPT)
+target     prot opt source               destination         
+
+Chain OUTPUT (policy ACCEPT)
+target     prot opt source               destination 
+```
