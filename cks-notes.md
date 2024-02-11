@@ -586,3 +586,127 @@ target     prot opt source               destination
 Chain OUTPUT (policy ACCEPT)
 target     prot opt source               destination 
 ```
+
+## Open Policy Agent (OPA)
+
+Check that kube-apiserver.yaml only has `--enable-admission-plugins=NodeRestriction`. Remove others if there are any.
+Install the gatekeeper: `kubectl create -f https://raw.githubusercontent.com/killer-sh/cks-course-environment/master/course-content/opa/gatekeeper.yaml`
+
+### Deny All
+
+Create constraint template: https://github.com/killer-sh/cks-course-environment/blob/master/course-content/opa/deny-all/alwaysdeny_template.yaml
+Check that the constraint template created:
+```bash
+k get constrainttemplate.templates.gatekeeper.sh
+# should see `k8salwaysdeny` template
+```
+
+Create 'pod-always-deny' constraint: https://github.com/killer-sh/cks-course-environment/blob/56946116ed10fc6fcc4c9cc6887b475ecd82cf63/course-content/opa/deny-all/all_pod_always_deny.yaml#L4
+
+Check constraint created:
+```bash
+k get k8salwaysdeny
+# should see pod-always-deny
+```
+
+Try scheduling a pod. Should see" `Error from server ([pod-always-deny] ACCESS DENIED!): admission webhook "validation.gatekeeper.sh" denied the request: [pod-always-deny] ACCESS DENIED!`
+
+Inspect the constraint log: `k describe k8salwaysdeny pod-always-deny`
+
+### Allow All
+
+Change `1 > 0` to `1 > 2` in the `k8salwaysdeny` template.
+
+### All namespaces created need to have the label 'cks'
+
+Template: https://github.com/killer-sh/cks-course-environment/blob/56946116ed10fc6fcc4c9cc6887b475ecd82cf63/course-content/opa/namespace-labels/k8srequiredlabels_template.yaml
+Constraint: https://github.com/killer-sh/cks-course-environment/blob/56946116ed10fc6fcc4c9cc6887b475ecd82cf63/course-content/opa/namespace-labels/all_ns_must_have_cks.yaml
+
+```bash
+k describe k8srequiredlabels ns-must-have-cks
+```
+
+# Supply Chain Security
+
+## Reduce image size using a multi-stage build
+
+A single stage build would produce an image that is about ~700 MB (huge).
+The multi-stage image will be ~10 MB max (in this example).
+
+Example:
+```docker
+# stage 0
+FROM ubuntu
+ARG DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y golang-go
+COPY app.go .
+RUN CGO_ENABLED=0 go build app.go
+
+# stage 1
+FROM alpine
+COPY --from=0 /app .
+
+CMD ["./app"]
+```
+
+## Secure and harden images
+
+### Use specific tags
+Use specific tags:
+- `FROM ubuntu:20.04`
+- `FROM alpine:3.19.1`
+
+Pin versions in the package managers (e.g. apt-get) as well, will be more reliable.
+
+### Don't run as root
+Don't run as root. Example
+```docker
+# abridged
+
+# app container stage 2
+FROM alpine:3.12.0
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup -h /home/appuser
+COPY --from=0 /app /home/appuser/
+USER appuser
+CMD ["/home/appuser/app"]
+```
+
+### Make filesystem read-only
+
+```docker
+# abridged
+
+# app container stage 2
+FROM alpine:3.12.0
+RUN chmod a-w /etc
+```
+
+Rebuild and run detached: `docker run -d app`.
+
+```bash
+docker exec -it <container_id> sh
+# note /etc doesn't have write permissions
+ls -lh / | grep etc
+```
+
+### Remove shell access
+
+In dockerfile, remove the entire `/bin` directory at the end: `RUN rm -rf /bin/*`
+Example:
+```docker
+# abridged
+
+# app container stage 2
+FROM alpine:3.12.0
+RUN chmod a-w /etc
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup -h /home/appuser
+RUN rm -rf /bin/*
+COPY --from=0 /app /home/appuser/
+USER appuser
+CMD ["/home/appuser/app"]
+```
+
+Read best practices: https://docs.docker.com/develop/develop-images/instructions/
+
+Won't be able to run shell interactively now:
+`OCI runtime exec failed: exec failed: unable to start container process: exec: "sh": executable file not found in $PATH: unknown`
