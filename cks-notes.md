@@ -710,3 +710,215 @@ Read best practices: https://docs.docker.com/develop/develop-images/instructions
 
 Won't be able to run shell interactively now:
 `OCI runtime exec failed: exec failed: unable to start container process: exec: "sh": executable file not found in $PATH: unknown`
+
+## Static Analysis
+
+### Kubesec
+
+Kubesec can be used to scan YAML templates.
+```bash
+# generate a pod spec
+k run nginx --image nginx -oyaml --dry-run=client > pod.yaml
+
+# scan
+docker run -i kubesec/kubesec:512c5e0 scan /dev/stdin < pod.yaml
+```
+
+### Conftest - OPA
+
+Can be used to verify k8s resources.
+```
+# from https://www.conftest.dev
+package main
+
+deny[msg] {
+  input.kind = "Deployment"
+  not input.spec.template.spec.securityContext.runAsNonRoot = true
+  msg = "Containers must not run as root"
+}
+
+deny[msg] {
+  input.kind = "Deployment"
+  not input.spec.selector.matchLabels.app
+  msg = "Containers must provide app label for pod selectors"
+}
+```
+
+Run analysis.
+```bash
+docker run --rm -v $(pwd):/project openpolicyagent/conftest test deploy.yaml
+```
+
+Can also be used to verify Docker files.
+```
+package commands
+
+denylist = [
+  "apk",
+  "apt",
+  "pip",
+  "curl",
+  "wget",
+]
+
+deny[msg] {
+  input[i].Cmd == "run"
+  val := input[i].Value
+  contains(val[_], denylist[_])
+
+  msg = sprintf("unallowed commands found %s", [val])
+}
+```
+Execute:
+```bash
+docker run --rm -v $(pwd):/project openpolicyagent/conftest test Dockerfile --all-namespaces 
+```
+
+## Image vulnerability scanning with Trivy
+
+Trivy downloads vuln database and scans an image.
+```bash
+docker run aquasec/trivy image trinodb/trino:438
+```
+
+## Use Image Digest
+
+Use all images used in the whole cluster:
+```bash
+k get pod -A -oyaml | grep "image:" | grep -v "f:"
+```
+Look at yaml of the kube-apiserver. Grab the value of `imageID` field (includes digest). Update the manifest to use the image with a digest. Should work.
+`registry.k8s.io/kube-apiserver@sha256:98a686df810b9f1de8e3b2ae869e79c51a36e7434d33c53f011852618aec0a68`
+
+## Whitelist some registries using OPA
+
+Only images from docker.io and k8s.gcr.io can be used.
+
+Create template and constraint from here: https://github.com/killer-sh/cks-course-environment/tree/master/course-content/supply-chain-security/secure-the-supply-chain/whitelist-registries/opa
+
+```yaml
+apiVersion: templates.gatekeeper.sh/v1beta1
+kind: ConstraintTemplate
+metadata:
+  name: k8strustedimages
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sTrustedImages
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8strustedimages
+
+        violation[{"msg": msg}] {
+          image := input.review.object.spec.containers[_].image
+          not startswith(image, "docker.io/")
+          not startswith(image, "k8s.gcr.io/")
+          msg := "not trusted image!"
+        }
+---
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sTrustedImages
+metadata:
+  name: pod-trusted-images
+spec:
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+```
+
+This won't work anymore: `k run nginx --image=nginx`
+This will: `k run nginx --image=docker.io/nginx`
+
+## Investigate ImagePolicyWebhook
+
+Have it call an external service.
+
+Add the following flag to the kube-apiserver.yaml: `--enable-admission-plugins=NodeRestriction,ImagePolicyWebhook`.
+API won't work anymore. Check log (in /var/log/pods):
+```
+2024-02-16T07:25:30.441985957Z stderr F E0216 07:25:30.441762       1 run.go:74] "command failed" err="failed to apply admission: couldn't init admission plugin \"ImagePolicyWebhook\": no config specified"
+```
+
+Copy example:
+```
+git clone https://github.com/killer-sh/cks-course-environment.git
+cp -r cks-course-environment/course-content/supply-chain-security/secure-the-supply-chain/whitelist-registries/ImagePolicyWebhook/ /etc/kubernetes/admission
+```
+
+Check /etc/kubernetes/admission/admission_config.yaml
+```yaml
+apiVersion: apiserver.config.k8s.io/v1
+kind: AdmissionConfiguration
+plugins:
+  - name: ImagePolicyWebhook
+    configuration:
+      imagePolicy:
+        kubeConfigFile: /etc/kubernetes/admission/kubeconf
+        allowTTL: 50
+        denyTTL: 50
+        retryBackoff: 500
+        # pods will be denied even if the webhook server is not reachable
+        defaultAllow: false
+```
+
+Check /etc/kubernetes/admission/kubeconf
+```yaml
+apiVersion: v1
+kind: Config
+
+# clusters refers to the remote service.
+clusters:
+- cluster:
+    certificate-authority: /etc/kubernetes/admission/external-cert.pem  # CA for verifying the remote service.
+    server: https://external-service:1234/check-image                   # URL of remote service to query. Must use 'https'.
+  name: image-checker
+
+contexts:
+- context:
+    cluster: image-checker
+    user: api-server
+  name: image-checker
+current-context: image-checker
+preferences: {}
+
+# users refers to the API server's webhook configuration.
+users:
+- name: api-server
+  user:
+    client-certificate: /etc/kubernetes/admission/apiserver-client-cert.pem     # cert for the webhook admission controller to use
+    client-key:  /etc/kubernetes/admission/apiserver-client-key.pem             # key matching the cert
+```
+
+Add `--admission-control-config-file=/etc/kubernetes/admission/admission_config.yaml` flag to kube-apiserver.yaml.
+Mount the dir:
+```yaml
+volumeMounts:
+  - mountPath: /etc/kubernetes/admission
+    name: k8s-admission
+    readOnly: true
+```
+```yaml
+volumes:
+- hostPath:
+    path: /etc/kubernetes/admission
+    type: DirectoryOrCreate
+  name: k8s-admission
+```
+
+Try creating a pod:
+```bash
+root@cks-master:/etc/kubernetes/admission# k run test --image=nginx
+Error from server (Forbidden): pods "test" is forbidden: Post "https://external-service:1234/check-image?timeout=30s": dial tcp: lookup external-service on 169.254.169.254:53: no such host
+```
+
+This is because the external admission service hasn't been configured. Set `defaultAllow: true` in admission_config.yaml.
+Reboot the kube-apiserver:
+```bash
+mv /etc/kubernetes/manifests/kube-apiserver.yaml /tmp/
+mv /tmp/kube-apiserver.yaml /etc/kubernetes/manifests/kube-apiserver.yaml
+```
+
+The pod creation will now be possible.
