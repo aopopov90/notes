@@ -910,7 +910,7 @@ volumes:
 
 Try creating a pod:
 ```bash
-root@cks-master:/etc/kubernetes/admission# k run test --image=nginx
+root@cks-master:/etc/kubernetes/admission# k ruin test --image=nginx
 Error from server (Forbidden): pods "test" is forbidden: Post "https://external-service:1234/check-image?timeout=30s": dial tcp: lookup external-service on 169.254.169.254:53: no such host
 ```
 
@@ -922,3 +922,151 @@ mv /tmp/kube-apiserver.yaml /etc/kubernetes/manifests/kube-apiserver.yaml
 ```
 
 The pod creation will now be possible.
+
+## strace: show syscalls
+
+```bash
+strace ls /
+# summary view
+strace -cw ls /
+```
+
+## strace and /proc: etcd
+
+```bash
+# get etcd process
+ps aux | grep etcd
+# inspect the process
+strace -p 1453
+# summary
+strace -p 1453 -f -cw
+```
+
+## Create Apache pod with a secret as an environment variable
+
+Read the secret from the host system.
+Create a pod with an env variable. Note the process id.
+Do `cat /proc/4465/environ`. The env var value should be there. 
+
+Note: secrets as environment variables can be seen by anyone who can access /proc on the host. 
+
+## Install Falco on a worker node
+
+ Install from here: https://github.com/killer-sh/cks-course-environment/blob/master/Resources.md#runtime-security---behavioral-analytics-at-host-and-container-level
+
+ `service falco start`
+ Check log: `tail /var/log/syslog | grep falco`
+
+ ## Use Falco to find malicious processes inside containers
+
+Stream Falco logs on the worker node: `tail -f /var/log/syslog | grep falco`.
+On a master node connect to the pod `k exec -it apache -- sh`.
+Should see some Falco log (on a worker node):
+```
+ Feb 17 17:00:52 cks-worker falco: 17:00:52.468329957: Notice A shell was spawned in a container with an attached terminal (user=root user_loginuid=-1 apache (id=1dcf91c0aad1) shell=sh parent=<NA> cmdline=sh terminal=34816 container_id=1dcf91c0aad1 image=docker.io/library/httpd) 
+```
+
+Edit `/etc/passwd`: `echo user >> /etc/passwd`.
+Falco sees it:
+```
+Feb 17 17:07:03 cks-worker falco: 17:07:03.981272893: Error File below /etc opened for writing (user=root user_loginuid=-1 command=sh parent=<NA> pcmdline=<NA> file=/etc/passwd program=sh gparent=<NA> ggparent=<NA> gggparent=<NA> container_id=1dcf91c0aad1 image=docker.io/library/httpd)
+```
+
+Add a liveness probe that updates packages:
+```yaml
+    livenessProbe:
+      exec:
+        command:
+        - apt-get
+        - update
+      initialDelaySeconds: 5
+      periodSeconds: 5
+```
+Falco will be reporting it:
+```
+Feb 17 17:12:21 cks-worker falco: 17:12:21.552159595: Error Package management process launched in container (user=root user_loginuid=-1 command=apt-get update container_id=94393180619a container_name=apache image=docker.io/library/httpd:latest)
+```
+
+The difference between Liveness probe and a readiness probe:
+- if a container fails readiness checks it keeps running, however, the whole pod is marked as non-ready, thus not receiving traffic
+- if a container fails liveness checks that specific container gets restarted
+
+## Look at some Falco rules
+
+```bash
+cd /etc/falco
+# explore the following files 
+vim falco_rules.yaml 
+vim k8s_audit_rules.yaml 
+```
+
+## Change a Falco rule
+
+Copy the whole rule from `/etc/falco/falco_rules.yaml`:
+```yaml
+- rule: Terminal shell in container
+  desc: A shell was used as the entrypoint/exec point into a container with an attached terminal.
+  condition: >
+    spawned_process and container
+    and shell_procs and proc.tty != 0
+    and container_entrypoint
+    and not user_expected_terminal_shell_in_container_conditions
+  output: >
+    A shell was spawned in a container with an attached terminal (user=%user.name user_loginuid=%user.loginuid %container.info
+    shell=%proc.name parent=%proc.pname cmdline=%proc.cmdline terminal=%proc.tty container_id=%container.id image=%container.image.repository)
+  priority: NOTICE
+  tags: [container, shell, mitre_execution]
+```
+
+Put a rule in `/etc/falco/falco_rules.local.yaml` and modify.
+Fields here: https://falco.org/docs/reference/rules/supported-fields/
+
+## Remove executables from a container using startupProbes
+
+```yaml
+containers:
+- startupProbe:
+  exec:
+    command:
+    - rm
+    - /bin/bash
+```
+
+## Create Pod SecurityContext to make filesystem read-only
+
+Ensure some directories are still writable using emptyDir volume.
+
+Set security context:
+```yaml
+  containers:
+  - securityContext:
+      readOnlyRootFilesystem: true
+```
+The the app will be crashing, check log:
+```
+[Sun Feb 18 09:12:28.335369 2024] [core:error] [pid 1:tid 140217599285120] (30)Read-only file system: AH00099: could not create /usr/local/apache2/logs/httpd.pid.JuHy0l
+[Sun Feb 18 09:12:28.335489 2024] [core:error] [pid 1:tid 140217599285120] AH00100: httpd: could not log pid to file /usr/local/apache2/logs/httpd.pid
+```
+Configure an emptyDir volume:
+```yaml
+  containers:
+  - volumeMounts:
+    - mountPath:  /usr/local/apache2/logs
+      name: cache-volume
+  volumes:
+  - name: cache-volume
+    emptyDir:
+      sizeLimit: 500Mi
+```
+Should work after a restart.
+The container is read-only now:
+```bash
+k exec immutable -- touch test
+touch: cannot touch 'test': Read-only file system
+command terminated with exit code 1 
+```
+
+Similar can be done in docker:
+```bash
+docker run --read-only --tmpfs /run my-container 
+```
