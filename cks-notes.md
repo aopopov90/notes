@@ -1070,3 +1070,141 @@ Similar can be done in docker:
 ```bash
 docker run --read-only --tmpfs /run my-container 
 ```
+
+## Configure apiserver to store Audit Logs in JSON format
+
+ ```bash
+# create a simple policy file
+mkdir -p /etc/kubernetes/audit
+cd /etc/kubernetes/audit
+cat <<EOF > policy.yaml
+apiVersion: audit.k8s.io/v1
+kind: Policy
+rules:
+- level: Metadata
+EOF
+```
+Configure kube-apiserver (/etc/kubernetes/manifests/kube-apiserver.yaml):
+ ```yaml
+...
+spec:
+  containers:
+  - command:
+    - kube-apiserver
+    - --audit-policy-file=/etc/kubernetes/audit/policy.yaml
+    - --audit-log-path=/etc/kubernetes/audit/log/audit.log
+    - --audit-log-maxsize=500
+    - --audit-log-maxbackup=5
+...
+    volumeMounts:
+    - mountPath: /etc/kubernetes/audit
+      name: audit
+...
+  volumes:
+  - hostPath:
+      path: /etc/kubernetes/audit
+      type: DirectoryOrCreate
+    name: audit
+ ```
+
+ Docs: https://kubernetes.io/docs/tasks/debug/debug-cluster/audit/#log-backend
+ Example: https://github.com/killer-sh/cks-course-environment/blob/master/course-content/runtime-security/auditing/kube-apiserver_enable_auditing.yaml
+
+ ## Create a secret and investigate the JSON audit log
+
+Create a secret:
+```bash
+k create secret generic very-secure --from-literal=user=admin
+```
+
+Inspectl log entry (`cat ./log/audit.log | grep very-secure`):
+```json
+{
+    "kind": "Event",
+    "apiVersion": "audit.k8s.io/v1",
+    "level": "Metadata",
+    "auditID": "98a1cb54-ed79-4705-99ff-f25900358dd8",
+    "stage": "ResponseComplete",
+    "requestURI": "/api/v1/namespaces/default/secrets?fieldManager=kubectl-create\u0026fieldValidation=Strict",
+    "verb": "create",
+    "user": {
+        "username": "kubernetes-admin",
+        "groups": [
+            "system:masters",
+            "system:authenticated"
+        ]
+    },
+    "sourceIPs": [
+        "10.154.0.2"
+    ],
+    "userAgent": "kubectl/v1.28.6 (linux/amd64) kubernetes/be3af46",
+    "objectRef": {
+        "resource": "secrets",
+        "namespace": "default",
+        "name": "very-secure",
+        "apiVersion": "v1"
+    },
+    "responseStatus": {
+        "metadata": {},
+        "code": 201
+    },
+    "requestReceivedTimestamp": "2024-02-19T07:34:39.986194Z",
+    "stageTimestamp": "2024-02-19T07:34:39.991989Z",
+    "annotations": {
+        "authorization.k8s.io/decision": "allow",
+        "authorization.k8s.io/reason": "",
+        "failed-open.validating.webhook.admission.k8s.io/round_0_index_0": "validation.gatekeeper.sh"
+    }
+}
+```
+
+## Restrict logged data with an Audit Policy
+
+- Nothing from stage RequestReceived
+- Nothing from 'Get', 'Watch', 'List'
+- From Secrets only metadata level
+- Everything else RequestResponse level
+
+```yaml
+apiVersion: audit.k8s.io/v1
+kind: Policy
+rules:
+- level: RequestResponse
+- level: None
+  verbs: ["watch", "get", "list" ]
+- level: Metadata
+  resources:
+  - group: ""
+    resources: ["secrets"]
+omitStages:
+  - "RequestReceived"
+```
+
+## SetUp simple AppArmour profile for curl
+
+ ```bash
+# check status
+aa-status
+
+# install additional tools
+apt-get install apparmor-utils
+
+# generate a new profile for curl (press F)
+aa-genprof curl
+
+# try running curl; will get 'could not resolve host'
+curl -v killer.sh
+
+# check status again - should see 26 instead of 25 profiles 
+
+# the profiles are located in `/etc/apparmour.d`
+# check 'curl' profile
+c
+# to update a profile, first run
+# this will list the attempted operations
+# can choose 'A' to allow; the profile will be updated accordingly
+aa-logprof
+
+# check the profile again, should see new entries such as '  #include <abstractions/openssl>'
+# curl command shoudl work now
+ ```
