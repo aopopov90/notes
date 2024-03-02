@@ -1199,12 +1199,182 @@ curl -v killer.sh
 
 # the profiles are located in `/etc/apparmour.d`
 # check 'curl' profile
-c
+vim /etc/apparmor.d/usr.bin.curl
 # to update a profile, first run
 # this will list the attempted operations
 # can choose 'A' to allow; the profile will be updated accordingly
 aa-logprof
 
 # check the profile again, should see new entries such as '  #include <abstractions/openssl>'
-# curl command shoudl work now
+# curl command shoudl work
  ```
+
+## Nginx Docker container that is using AppArmor profile
+
+Download this script as `/etc/apparmor.d/docker-nginx`: https://github.com/killer-sh/cks-course-environment/blob/master/course-content/system-hardening/kernel-hardening-tools/apparmor/profile-docker-nginx
+
+Use `apparmor_parser` command to install.
+Example: https://kubernetes.io/docs/tutorials/security/apparmor/#example
+```bash
+# install profile
+apparmor_parser /etc/apparmor.d/docker-nginx
+# check status
+aa-status
+```
+Run docker wiht an apparmor profile:
+```bash
+docker run --security-opt apparmor=docker-nginx -d nginx
+docker exec -it <container_id> sh
+# try creating files; should not work
+touch /root/test
+``` 
+
+## Using AppArmor in k8s
+
+Docs with an example: https://kubernetes.io/docs/tutorials/security/apparmor/#pod-annotation
+
+Create a pod with an annotation pointing to a non-existent container:
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  creationTimestamp: null
+  labels:
+    run: secure
+  annotations:
+    container.apparmor.security.beta.kubernetes.io/secure: localhost/hello 
+  name: secure
+spec:
+  containers:
+  - image: nginx
+    name: secure
+    resources: {}
+  dnsPolicy: ClusterFirst
+  restartPolicy: Always
+status: {}
+```
+
+Start the pod, it won't pass readiness checks. Error:
+```
+Warning  Failed     12s (x5 over 41s)  kubelet            Error: failed to get container spec opts: failed to generate apparmor spec opts: apparmor profile not found hello
+```
+
+Create it with an existing profile (on a pod level):
+```yaml
+annotations:
+    container.apparmor.security.beta.kubernetes.io/secure: localhost/docker-nginx
+```
+
+Verify (on a node where container is running):
+```bash
+crictl inspect <container_id> | grep apparmor
+```
+
+## Running nginx Docker container with seccomp
+
+Save into default.json the following file: https://github.com/killer-sh/cks-course-environment/blob/master/course-content/system-hardening/kernel-hardening-tools/seccomp/profile-docker-nginx.json
+
+```bash
+# run with seccomp profile
+docker run --security-opt seccomp=default.json nginx
+```
+
+## Create a Nginx Pod in k8s and assign a seccomp profile to it
+
+Doc: https://kubernetes.io/docs/tutorials/security/seccomp/#create-a-pod-with-a-seccomp-profile-for-syscall-auditing
+Add the following security context to a pod:
+```yaml
+  securityContext:
+    seccompProfile:
+      type: Localhost
+      localhostProfile: profiles/audit.json
+```
+
+Try creating a pod. Should see the following error:
+```
+ Warning  Failed     11s (x2 over 13s)  kubelet            Error: failed to create containerd container: cannot load seccomp profile "/var/lib/kubelet/seccomp/profiles/audit.json": open /var/lib/kubelet/seccomp/profiles/audit.json: no such file or directory
+```
+
+Copy the `default.json` to `/var/lib/kubelet/seccomp/profiles/default.json`. Update the pod security context too.
+Recreate the pod, it should be running now.
+
+## Disable Snapd service via systemctl 
+
+Common `systemctl` commands.
+```bash
+# check service status
+systemctl status snapd
+
+# stop service
+systemctl stop snapd
+
+# list services
+systemctl list-units
+
+# check for a specific service
+systemctl list-units | grep snapd
+
+# or filter
+systemctl list-units --type=service --state=running | grep snapd
+
+# you can stop a service; but it will be started again on system reboot
+systemctl stop snapd
+
+# disable to prevent it from being started
+systemctl disable snapd 
+```
+
+## Install and investigate services
+
+```bash
+# install services
+apt-get update && apt-get install vsftpd samba
+
+# start the service and check status
+systemctl start smbd
+systemctl status smbd
+
+# check processes
+ps aux | grep vsftpd
+ps aux | grep smbd
+
+# check ports
+netstat -plnt | grep smbd 
+```
+
+## Find and disable the app listening on port 21
+
+```bash
+# check for a process (will be vsftpd)
+netstat -plnt | grep 21
+lsof -i :21
+
+# identity service name (will be vsftpd.service)
+systemctl list-units --type=service | grep ftp
+
+# disable service
+systemctl disable vsftpd.service
+
+# run netstat or lsof again; should not have anything
+```
+
+## Investigate linux users
+
+```bash
+# list users
+cat /etc/passwd
+
+# login as a specific user
+su ubuntu && whoami
+
+# become 'root' again
+sudo -i
+
+# check logged in users
+ps aux | grep bash 
+
+# create a user (provide password interactively)
+adduser test
+
+# as a root you can log in as any user without password  
+```
