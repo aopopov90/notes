@@ -241,9 +241,10 @@ k exec nginx -- mount | grep ser
 curl https://${KUBERNETES_PORT_443_TCP_ADDR} -k -H "Authorization: Bearer $(cat token)"
 ```
 
-Disable the auto-mount of the SA
+## Disable the auto-mount of the SA
 
-# https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/#opt-out-of-api-credential-automounting
+[Opt out of api credential automounting](https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/#opt-out-of-api-credential-automounting)
+
 Add the `automountServiceAccountToken: false` param to the SA.
 Or, use the same property in the pod spec.
 ```bash
