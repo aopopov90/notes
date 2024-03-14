@@ -1,5 +1,7 @@
 <!-- @import "[TOC]" {cmd="toc" depthFrom=1 depthTo=6 orderedList=false} -->
 
+# Cluster Set-up
+
 Certificate locations:
 - CA, api-server, kubelet, etcd: /etc/kubernetes/pki
 - controller-manager (in file): /etc/kubernetes/controller-manager.conf
@@ -8,7 +10,7 @@ Certificate locations:
 - kubelet-server: /var/lib/kubelet/pki
 
 
-# Connecting to kube-apiserver via NodePort (not recommended)
+## Connecting to kube-apiserver via NodePort (not recommended)
 
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -43,21 +45,20 @@ Change the `kubernetes` svc in the default namespace to NodePort type. Note a ne
 Should be able to curl after that form external:
 ```
 
-```
+```bash
 curl -k https://34.147.199.27:30732/api/v1/namespaces/default/pods
 ```
 
 Configuring kubectl:
-```
+```bash
 kubectl config set-cluster cks --server=https://34.147.199.27:30732 --insecure-skip-tls-verify=true
 kubectl config set-credentials system:anonymous --token=""
 kubectl config set-context cks --cluster=cks --user=system:anonymous
 kubectl config use-context cks
 ```
 
-# Cluster Setup
 ## Calling secure ingress with the --resolve option
-```
+```bash
 curl https://secure-ingress.com:30846/service2 -vk --resolve secure-ingress.com:30846:34.147.138.133
 ```
 
@@ -65,16 +66,17 @@ curl https://secure-ingress.com:30846/service2 -vk --resolve secure-ingress.com:
 
 https://cloud.google.com/compute/docs/metadata/overview
 
-```
+```bash
 # the following works both from node directly and from a pod
 curl -vk http://metadata.google.internal/computeMetadata/v1/project/ -H "Metadata-Flavor: Google"
 curl -vk http://metadata.google.internal/computeMetadata/v1/instance/disks/ -H "Metadata-Flavor: Google"
 ```
 
-Protect with network policies:
-```
-# https://github.com/killer-sh/cks-course-environment/blob/master/course-content/cluster-setup/protect-node-metadata/np_cloud_metadata_deny.yaml
+### Protect with network policies:
+
+```yaml
 # all pods in namespace cannot access metadata endpoint
+# https://github.com/killer-sh/cks-course-environment/blob/master/course-content/cluster-setup/protect-node-metadata/np_cloud_metadata_deny.yaml
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -93,7 +95,7 @@ spec:
 ```
 
 Allow for only specific pods:
-```
+```yaml
 # https://github.com/killer-sh/cks-course-environment/blob/master/course-content/cluster-setup/protect-node-metadata/np_cloud_metadata_allow.yaml
 # only pods with label are allowed to access metadata endpoint
 apiVersion: networking.k8s.io/v1
@@ -114,10 +116,9 @@ spec:
 ```
 
 ## Running kube-bench
+
 https://github.com/aquasecurity/kube-bench
-```
 https://raw.githubusercontent.com/aquasecurity/kube-bench/main/job.yaml
-```
 
 or 
 
@@ -145,6 +146,9 @@ Instead do the following. (Optional) Check that the container is running: `crict
 Identify the process pid (e.g. 1519): `ps aux | grep kube-apiserver`.
 Find the binary within the process directory: `find /proc/1519/root | grep kube-api`.
 Capture checksum and compare with the one captured form the downloaded binary: `sha512sum /proc/1519/root/usr/local/bin/kube-apiserver >> compare`.
+
+
+# Cluster Hardening
 
 ## RBAC
 
@@ -315,6 +319,8 @@ This gives administrator the assurance that nodes can not run some secure pods o
 ## Upgrade control plane one version up
 
 Follow this guide: https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/kubeadm-upgrade/
+
+# Minimise Microservice vulnerabilities
 
 ## Inspecting secrets with container runtime
 
@@ -923,6 +929,8 @@ mv /tmp/kube-apiserver.yaml /etc/kubernetes/manifests/kube-apiserver.yaml
 
 The pod creation will now be possible.
 
+# Monitoring, Logging and Runtime Security
+
 ## strace: show syscalls
 
 ```bash
@@ -1179,6 +1187,8 @@ rules:
 omitStages:
   - "RequestReceived"
 ```
+
+# System Hardening
 
 ## SetUp simple AppArmour profile for curl
 
