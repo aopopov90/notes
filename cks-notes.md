@@ -323,6 +323,39 @@ Follow this guide: https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/k
 
 # Minimise Microservice vulnerabilities
 
+## Inspecting secrets by calling k8s api from a containe
+
+Attach to a container and check sa token is present (if `automountServiceAccountToken` enabled):
+```bash
+➜ k -n restricted exec -it pod3-748b48594-24s76 -- sh
+
+/ # mount | grep serviceaccount
+tmpfs on /run/secrets/kubernetes.io/serviceaccount type tmpfs (ro,relatime)
+
+/ # ls /run/secrets/kubernetes.io/serviceaccount
+ca.crt     namespace  token
+```
+
+Get the secrets by calling the API:
+```bash
+/ # curl https://kubernetes.default/api/v1/namespaces/restricted/secrets -H "Authorization: Bearer $(cat /run/secrets/kubernetes.io/serviceaccount/token)" -k
+...
+    {
+      "metadata": {
+        "name": "secret3",
+        "namespace": "restricted",
+...
+          }
+        ]
+      },
+      "data": {
+        "password": "cEVuRXRSYVRpT24tdEVzVGVSCg=="
+      },
+      "type": "Opaque"
+    }
+...
+```
+
 ## Inspecting secrets with container runtime
 
 This example shows how easily accessible secrets are if you have root access to node.
