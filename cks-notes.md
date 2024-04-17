@@ -1002,6 +1002,7 @@ Note: secrets as environment variables can be seen by anyone who can access /pro
  ## Use Falco to find malicious processes inside containers
 
 Stream Falco logs on the worker node: `tail -f /var/log/syslog | grep falco`.
+Should also be able to view logs via: `journalctl -fu falco`.
 On a master node connect to the pod `k exec -it apache -- sh`.
 Should see some Falco log (on a worker node):
 ```
