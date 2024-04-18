@@ -1063,6 +1063,7 @@ Copy the whole rule from `/etc/falco/falco_rules.yaml`:
 
 Put a rule in `/etc/falco/falco_rules.local.yaml` and modify.
 Fields here: https://falco.org/docs/reference/rules/supported-fields/
+For the updates to take effect, Falco needs to be hot-reloaded: `kill -1 $(cat /var/run/falco.pid)`
 
 ## Remove executables from a container using startupProbes
 
