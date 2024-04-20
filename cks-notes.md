@@ -1232,11 +1232,20 @@ omitStages:
 # check status
 aa-status
 
+# check if apparmor is enabled
+cat /sys/module/apparmor/parameters/enabled
+
+# another way to check existing profiles
+cat /sys/kernel/security/apparmor/profiles
+
 # install additional tools
 apt-get install apparmor-utils
 
 # generate a new profile for curl (press F)
 aa-genprof curl
+
+# can also generate a profile for custom script
+aa-genprof <script_path>
 
 # try running curl; will get 'could not resolve host'
 curl -v killer.sh
@@ -1264,8 +1273,12 @@ Example: https://kubernetes.io/docs/tutorials/security/apparmor/#example
 ```bash
 # install profile
 apparmor_parser /etc/apparmor.d/docker-nginx
+
 # check status
 aa-status
+
+# to disable a profile use '-R' flag
+apparmor_parser -R /etc/apparmor.d/docker-nginx
 ```
 Run docker wiht an apparmor profile:
 ```bash
@@ -1435,3 +1448,13 @@ adduser test
 - To suspend a user, run: `usermod -s /usr/sbin/nologin <username>`. This will make sure that the user can no longer login with their credentials
 - Create a user named sam on the controlplane host. The user's home directory must be /opt/sam. Login shell must be /bin/bash and uid must be 2328. Make sam a member of the admin group.
   Solution: `useradd -d /opt/sam -s /bin/bash -G admin -u 2328 sam`
+
+## Check required Linux capabilities for a command
+
+1. To see capabilities required for a specific command use: `getcap /usr/bin/ping`
+2. To see capabilities for a process, first identity the uid of the process:
+   `ps -ef | grep /usr/sbin/sshd | grep -v grep`
+3. See capabilities for a process: `getpcaps 779`
+
+
+
