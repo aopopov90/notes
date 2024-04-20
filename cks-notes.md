@@ -1424,3 +1424,14 @@ adduser test
 
 # as a root you can log in as any user without password  
 ```
+
+# Misc
+
+## Linux user and group management
+
+- To find out UID of a user either use `id <username>` command or `cat /etc/passw`
+- To change password, as root, run: `passwd <username>` and when prompted, enter the password
+- To delete user and groups use `userdel` and `groupdel` commands
+- To suspend a user, run: `usermod -s /usr/sbin/nologin <username>`. This will make sure that the user can no longer login with their credentials
+- Create a user named sam on the controlplane host. The user's home directory must be /opt/sam. Login shell must be /bin/bash and uid must be 2328. Make sam a member of the admin group.
+  Solution: `useradd -d /opt/sam -s /bin/bash -G admin -u 2328 sam`
