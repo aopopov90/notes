@@ -1457,15 +1457,14 @@ adduser test
 3. See capabilities for a process: `getpcaps 779`
 
 ## Disabling a process bound to a specific port 
-18  lsof -i :8088
-   19  ps aux | grep 5363
-   20  systemctl status openlitespeed
-   21  systemctl stop openlitespeed
-   22  systemctl status openlitespeed
-   23  systemctl disable openlitespeed
-   24  lsof -i :8080
-   25  ps aux | grep 617
-   26  statusctl status ttyd
-   27  systemctl status ttyd
-   28  systemctl disable ttyd
-  apt-get remove openlitespeed
+
+Approach 1:
+- Check the file for the required port: `cat /etc/services | grep -w 53`
+
+Approach 2:
+- Identify the id of a running process: `lsof -i :8088`
+- Identify the process: `ps aux | grep 5363`
+- `systemctl status openlitespeed`
+  `systemctl stop openlitespeed`
+  `systemctl disable openlitespeed`
+- Remove package: `apt-get remove openlitespeed`
