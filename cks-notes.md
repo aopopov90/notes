@@ -1456,5 +1456,16 @@ adduser test
    `ps -ef | grep /usr/sbin/sshd | grep -v grep`
 3. See capabilities for a process: `getpcaps 779`
 
-
-
+## Disabling a process bound to a specific port 
+18  lsof -i :8088
+   19  ps aux | grep 5363
+   20  systemctl status openlitespeed
+   21  systemctl stop openlitespeed
+   22  systemctl status openlitespeed
+   23  systemctl disable openlitespeed
+   24  lsof -i :8080
+   25  ps aux | grep 617
+   26  statusctl status ttyd
+   27  systemctl status ttyd
+   28  systemctl disable ttyd
+  apt-get remove openlitespeed
