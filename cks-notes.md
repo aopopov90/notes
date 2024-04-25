@@ -1154,7 +1154,66 @@ spec:
  Docs: https://kubernetes.io/docs/tasks/debug/debug-cluster/audit/#log-backend
  Example: https://github.com/killer-sh/cks-course-environment/blob/master/course-content/runtime-security/auditing/kube-apiserver_enable_auditing.yaml
 
- ## Create a secret and investigate the JSON audit log
+## Another example of setting up an audit policy
+
+### Task
+ 
+Enable auditing in this kubernetes cluster. Create a new policy file that will only log events based on the below specifications:
+
+Namespace: prod
+Level: metadata
+Operations: delete
+Resources: secrets
+Log Path: /var/log/prod-secrets.log
+Audit file location: /etc/kubernetes/prod-audit.yaml
+Maximum days to keep the logs: 30
+
+### Solution 
+
+Create /etc/kubernetes/prod-audit.yaml as below:
+```yaml
+apiVersion: audit.k8s.io/v1
+kind: Policy
+rules:
+- level: Metadata
+  namespaces: ["prod"]
+  verbs: ["delete"]
+  resources:
+  - group: ""
+    resources: ["secrets"]
+```
+
+Next, make sure to enable logging in api-server:
+
+```yaml
+ - --audit-policy-file=/etc/kubernetes/prod-audit.yaml
+ - --audit-log-path=/var/log/prod-secrets.log
+ - --audit-log-maxage=30
+```
+Then, add volumes and volume mounts as shown in the below snippets.
+
+```yaml
+volumes:
+  - name: audit
+    hostPath:
+      path: /etc/kubernetes/prod-audit.yaml
+      type: File
+  - name: audit-log
+    hostPath:
+      path: /var/log/prod-secrets.log
+      type: FileOrCreate
+```
+```yaml    
+volumeMounts:
+  - mountPath: /etc/kubernetes/prod-audit.yaml
+    name: audit
+    readOnly: true
+  - mountPath: /var/log/prod-secrets.log
+    name: audit-log
+    readOnly: false
+```
+
+## Create a secret and investigate the JSON audit log
 
 Create a secret:
 ```bash
