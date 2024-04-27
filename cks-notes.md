@@ -821,6 +821,18 @@ Trivy downloads vuln database and scans an image.
 docker run aquasec/trivy image trinodb/trino:438
 ```
 
+## Identify a pod with fewest Cricital violations using Trivy
+
+First, get all the images of pods running:
+```bash
+kubectl -n delta get pods -o json | jq -r '.items[].spec.containers[].image'
+```
+
+Next, scan each image using trivy image command. For example:
+```bash
+trivy image --severity CRITICAL kodekloud/webapp-delayed-start
+```
+
 ## Use Image Digest
 
 Use all images used in the whole cluster:
