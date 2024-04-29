@@ -150,6 +150,40 @@ Capture checksum and compare with the one captured form the downloaded binary: `
 
 # Cluster Hardening
 
+## Specifying TLS ciphers for etcd and Kubernetes
+
+### kube-apiserver
+
+You can specify the supported TLS ciphers to use in communication between the kube-apiserver and applications.
+```yaml
+--tls-cipher-suites=TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+```
+
+### etcd
+
+
+You can specify the supported TLS ciphers to use in communication between the master and etcd servers.
+```yaml
+--cipher-suites=TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+```
+
+### kubelet
+
+You can specify the supported TLS ciphers to use in communication between the kubelet and applications, for example, Heapster or Prometheus.
+
+In config.yaml, add the following option:
+```yaml
+--tls-cipher-suites=TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"]
+```
+
+### References
+
+- Doc from IBM: https://www.ibm.com/docs/en/cloud-private/3.1.2?topic=installation-specifying-tls-ciphers-etcd-kubernetes
+- kube-apiserver: https://v1-29.docs.kubernetes.io/docs/reference/command-line-tools-reference/kube-apiserver/
+- etcd: https://github.com/etcd-io/etcd/blob/2b1914c262749441f3657be6f1aa1b9a03ab11d3/server/etcdmain/help.go#L214-L215
+- kubelet: https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet/
+
+
 ## RBAC
 
 ```bash
