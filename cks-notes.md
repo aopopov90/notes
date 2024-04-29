@@ -1166,6 +1166,28 @@ spec:
  Docs: https://kubernetes.io/docs/tasks/debug/debug-cluster/audit/#log-backend
  Example: https://github.com/killer-sh/cks-course-environment/blob/master/course-content/runtime-security/auditing/kube-apiserver_enable_auditing.yaml
 
+## Logging node-related events
+
+```yaml
+apiVersion: audit.k8s.io/v1
+kind: Policy
+rules:
+
+# log Secret resources audits, level Metadata
+- level: Metadata
+  resources:
+  - group: ""
+    resources: ["secrets"]
+
+# log node related audits, level RequestResponse
+- level: RequestResponse
+  userGroups: ["system:nodes"]
+
+# for everything else don't log anything
+- level: None
+```
+
+
 ## Another example of setting up an audit policy
 
 ### Task
