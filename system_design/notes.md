@@ -22,3 +22,9 @@ Availability (A)----------Partition Tolerance (P)
 ```
 
 The trade offs are not as strong as they used to be, practically speaking you get all 3 with modern databases. But the tradeoffs still exist.
+
+Examples:
+- MongoDB: Strong C and P, but trading A.
+- Casandra: Strong A and P, giving up C. There is no single master in Casandra. That means we have to replicate data across all of the nodes as we go, and because of that it is eventually consistent.
+
+Be sure to understand requirements about scaling, consistency and availability before proposing a specific database solution.
