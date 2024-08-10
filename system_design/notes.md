@@ -1,5 +1,10 @@
 # Designing systems that scale
 
+## Scaling
+
+**Horizontal** scaling - every server should be "stateless" and assume that any request can been handled by itself or by any other server.
+
+
 ## CAP theorem
 
 The CAP theorem, also known as Brewer's theorem, is a fundamental principle in distributed computing. It states that distributed data store can provide only two of the following three guarantees simultaneously:
