@@ -69,3 +69,66 @@ The main reason for this is that we consider all the nodes (e.g., servers) of a 
 
 However, stateful systems present many more challenges. As different nodes can hold different pieces of data, they require additional work. They need to direct traffic to the right place and ensure each instance is in sync with the others.
 
+# Core concepts and theoretical foundations
+
+## Partitioning
+
+Partitioning is the process of splitting a dataset into multiple, smaller datasets, and then assigning the responsibility of storing and processing them to different nodes of a distributed system. This allows us to add more nodes to our system and increase the size of the data it can handle.
+
+There are two different variations of partitioning:
+- Vertical partitioning
+- Horizontal partitioning (or **sharding**)
+
+### Vertical
+
+Vertical partitioning involves splitting a table into multiple tables with fewer columns and using additional tables to store columns that relate rows across tables. We commonly refer to this as a join operation. We can then store these different tables in different nodes.
+
+Normalization is one way to perform vertical partitioning. However, general vertical partitioning goes far beyond that: it splits a column, even when they are normalized.
+
+### Horizontal
+
+Horizontal partitioning involves splitting a table into multiple, smaller tables, where each table contains a percentage of the initial table’s rows. We can then store these different subtables in different nodes.
+
+Vertical partitioning is mainly a data modeling practice, which can be performed by the engineers designing a system—sometimes independently of the storage systems used. However, horizontal partitioning is a common feature of distributed databases. 
+
+
+## Algorithms for Horizontal Partitioning
+
+Some algorithms:
+- Range partitioning (map nodes to specific ranges)
+- Hash partitioning (e.g. assign based on the function hash(s) mod n)
+- Consistent hashing (ring based)
+
+## Replication
+
+Replication - is a technique used to achieve availability. It consists of storing the same piece of data in multiple nodes (called replicas) so that if one of them crashes, data is not lost, and requests can be served from the other nodes in the meanwhile.
+Availability - ability of the system to remain functional despite failures in parts of it.
+
+Engineers sometimes willingly accept a system that provides much higher performance, but occasionally gives an inconsistent view of the data. Therefore, there are two main strategies for replication:
+1. **Pessimistic** replication. Tries to guarantee from the beginning that all the replicas are identical to each other.
+2. **Optimistic** replication (or lazy). Allows replicas to diverge. This guarantees that they will converge again if the system does not receive any updates, or enters a quiesced state, for a period of time.
+
+## Primary-Backup Replication Algorithm
+
+This is a technique where we designate a single node amongst the replicas as the leader, or primary, that receives all the updates. We commonly refer to the remaining replicas as followers or secondaries. These can only handle read requests. Every time the leader receives an update, it executes it locally and also propagates the update to the other nodes. This ensures that all the replicas maintain a consistent view of the data.
+
+There are two ways to propagate the updates:
+1. **Syncronous**: the node replies to the client to indicate the update is complete—only after receiving acknowledgments from the other replicas that they’ve also performed the update on their local storage. This also ensures consistency and durability. However, the technique can make writing requests slower. This is because the leader has to wait until it receives responses from all the replicas.
+2. **Asyncronous**: the node replies to the client as soon as it performs the update in its local storage, without waiting for responses from the other replicas. This technique increases performance significantly for write requests. However, this comes at the cost of reduced consistency and decreased durability.
+
+## Multi-Primary Replication Algorithm
+
+Primary-backup replication has some limitations in terms of performance, scalability, and availability.
+
+There are many applications where availability and performance are much more important than data consistency or transactional semantics. For example, a shopping cart where a customer can resolve conflicts at checkout.
+
+Multi-primary replication is an alternative replication technique that favors higher availability and performance over data consistency. In this technique, all replicas are equal and can accept write requests. They are also responsible for propagating the data modifications to the rest of the group. This can lead to conflicts. Conflict resolution approaches:
+- **Eagerly**: the conflict is resolved during the write operation.
+- **Lazily**: the write operation proceeds to maintain multiple, alternative versions of the data record that are eventually resolved to a single version later on, i.e., during a subsequent read operation.
+
+## Quorums in Distributed Systems
+
+The problem with syncronous replication is that availability for write operations is low,  because the failure of a single node makes the system unable to process writes until the node recovers.
+To solve this problem, we can use the reverse strategy. That is, we write data only to the node that is responsible for processing a write operation, but process read operations by reading from all the nodes and returning the latest value.
+
+This increases the availability of writes significantly but decreases the availability of reads at the same time. So, we have a trade-off that needs a mechanism to achieve a balance. Let’s see that mechanism. A useful mechanism to achieve a balance in this trade-off is to use quorums.
