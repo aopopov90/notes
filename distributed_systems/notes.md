@@ -170,3 +170,88 @@ These sub-categories are combined to form the following four categories:
 - CP/EL
 - AP/EC
 - CP/EC
+
+## Consistency Models
+
+According to the CAP Theorem, consistency means that every successful read request will return the result of the most recent write. In fact, this is an oversimplification, because there are many different forms of consistency.
+
+The stronger the consistency model a system satisfies, the easier it is to build an application on top of it. This is because the developer can rely on stricter guarantees.
+
+Fundamental consistency models (from strongest to weakest):
+- **Linearizability**. operations appear to be instantaneous to the external client. This means that they happen at a specific point—from the point the client invokes the operation to the point the client receives the acknowledgment by the system the operation has been completed. When we use a synchronous replication technique, we make the system linearizable. It is a very strong consistency model. It helps us treat complex distributed systems as much simpler, single-node data stores.
+- **Sequential** Consistency. This is a weaker consistency model, where operations are allowed to take effect before their invocation or after their completion. As a result, it provides no real-time guarantees. However, operations from different clients have to be seen in the same order by all other clients, and operations of every single client preserve the order specified by its program (in this global order).
+- **Causal** Consistency. Requires that only operations that are causally related need to be seen in the same order by all the nodes. To achieve this, each operation needs to contain some information that signals whether it depends on other operations or not.
+- **Eventual** Consistency. It does not really provide any guarantees around the perceived order of operations or the final state the system converges to. It can still be a useful model for some applications, which do not require stronger assumptions or can detect and resolve inconsistencies at the application level.
+
+Only two models are used in CAP theorem:
+- Strong consistency - linearizability
+- Weak consistency - eventual consistency
+
+## Isolation Levels and Anomalies
+
+The inherent concurrency in distributed systems creates the potential for anomalies and unexpected behaviors. Specifically, transactions that comprise multiple operations and run concurrently can lead to different results depending on how their operations are interleaved.
+
+As a result, there is still a need for some formal models that define what is possible and what is not in a system’s behavior. These are called **isolation levels**. The most common ones are (strongest to weakest):
+- Serializability: It essentially states that two transactions, when executed concurrently, should give the same result as though executed sequentially.
+- Repeatable read: It ensures that the data once read by a transaction will not change throughout its course.
+- Snapshot isolation: It guarantees that all reads made in a transaction will see a consistent snapshot of the database from the point it started, and the transaction will successfully commit if no other transaction has updated the same data since that snapshot.
+- Read committed: It does not allow transactions to read data that has not yet been committed by another transaction.
+- Read uncommitted: It is the lowest isolation level and allows the transaction to read uncommitted data by other transactions.
+
+Stronger isolation levels prevent more anomalies at the cost of performance.
+
+Anomalies:
+- Dirty write – One transaction overwrites uncommitted changes of another.
+- Dirty read – A transaction reads uncommitted changes from another.
+- Fuzzy or non-repeatable read – A transaction reads the same data twice but gets different values.
+- Phantom read – A transaction reads a set of rows, but another transaction inserts or deletes rows, changing the result. Allowing phantom reads can be safe for an application that does not make use of predicate-based readsPredicate-based reads are database queries that retrieve rows based on a condition or predicate specified in the query. Instead of identifying rows by explicit keys, these queries use filters or conditions to select data dynamically.
+- Lost update – Two transactions update the same data, and one update is overwritten.
+- Read skew – A transaction reads inconsistent data due to changes in related data during its execution.
+- Write skew – Two transactions read the same data and update related data based on those reads, leading to inconsistency.
+
+## Prevention of Anomalies in Isolation Levels
+
+There is one isolation level that prevents all of these anomalies: the **serializable** one. It guarantees that the result of the execution of concurrent transactions is the same as that produced by some serial execution of the same transactions. However, serializability has performance costs since it intentionally reduces concurrency to guarantee safety.
+
+| Isolation Level          | Dirty Writes | Dirty Reads | Fuzzy Reads | Lost Updates | Read Skew | Write Skew | Phantom Reads |
+|--------------------------|--------------|-------------|-------------|--------------|-----------|------------|---------------|
+| **Read Uncommitted**     | not possible | possible    | possible    | possible     | possible  | possible   | possible      |
+| **Read Committed**       | not possible | not possible| possible    | possible     | possible  | possible   | possible      |
+| **Snapshot Isolation**   | not possible | not possible| not possible| not possible | not possible | possible | possible      |
+| **Repeatable Read**      | not possible | not possible| not possible| not possible | not possible | not possible | possible      |
+| **Serializability**      | not possible | not possible| not possible| not possible | not possible | not possible | not possible  |
+
+## Consistency and Isolation
+
+Consistency models and isolation levels have some differences with regards to the characteristics of their allowed and disallowed behaviors.
+- Consistency models are applied to single-object operations (e.g. read/write to a single register), while isolation levels are applied to multi-object operations (e.g. read and write from/to multiple rows in a table within a transaction).
+Looking at the strictest models in these two groups, linearizability and serializability, there is another important difference.
+- Linearizability provides real-time guarantees, while serializability does not.
+
+Linearizability guarantees that the effects of an operation took place at some point between when the client invoked the operation, and when the result of the operation was returned to the client.
+
+Serializability only guarantees that the effects of multiple transactions will be the same as if they run in serial order. It does not provide any guarantee on whether that serial order would be compatible with real-time order.
+
+**Strict serializability** is a model that is a combination of linearizability and serializability.
+
+This model guarantees that the result of multiple transactions is equivalent to the result of a serial execution of them, and is also compatible with the real-time ordering of these transactions. As a result, transactions appear to execute serially, and the effects of each of them take place at some point between their invocation and completion.
+
+## Hierarchy of Models
+
+Hierarchy of consistency levels and isolation models, where the strictness level decreases from top to bottom.
+
+```mermaid
+flowchart TD
+    A[Strict serializability] --> B[Serializability]
+    A --> C[Linearizability]
+    
+    B --> D[Repeatable read]
+    B --> E[Snapshot isolation]
+    
+    D --> F[Read committed]
+    F --> G[Read uncommitted]
+    
+    C --> H[Sequential consistency]
+    H --> I[Causal consistency]
+    I --> J[Eventual consistency]
+```
