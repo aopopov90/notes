@@ -80,3 +80,112 @@ The locking mechanism introduces the risk for **deadlocks**, where two transacti
 Ways to deal with deadlocks:
 - Prevention - this can be done if transactions know all the locks they need in advance and acquire them in an ordered way. This is typically done by the application since many databases support interactive transactions and are thus unaware of all the data a transaction will access.
 - Detection - aborting one of the transactions. Typically done by a database.
+
+### Optimistic Concurrency Control (OCC)
+
+Optimistic concurrency control (OCC) is a concurrency control method that was first proposed in 1981 by Kung et al., where transactions can access data items without acquiring locks on them.
+
+In this method, transactions execute in the following three phases:
+- Begin. Transactions are assigned a unique timestamp
+- Read & modify. Transactions execute their read and write operations tentatively. This means that when an item is modified, a copy of the item is written to a temporary, local storage location. A read operation first checks for a copy of the item in this location and returns this one, if it exists. Otherwise, it performs a regular read operation from the database.
+- Validate & commit/rollback. The transaction checks whether there are other transactions that have modified the data this transaction has accessed, and have started after this transaction’s start time. If there are, then the transaction is aborted and restarted from the beginning, acquiring a new timestamp. Otherwise, the transaction can be committed.
+
+### Achieving Snapshot Isolation
+
+**Multiversion Concurrency Control (MVCC)** is a technique where multiple physical versions are maintained for a single logical data item. As a result, update operations do not overwrite existing records, but they write a new version of these records. Read operations can then select a specific version of a record, possibly an older one. This is in contrast with the previous techniques, where updates are performed in place and there is a single record for each data item that can be accessed by read operations.
+
+In practice, MVCC is commonly used to implement the **snapshot isolation level**.
+
+The idea of **Snapshot isolation** is that each transaction reads from a *consistent snapshot* of the database that is, the transaction sees all the data that was committed in the database at the start of the transaction. Even if the data is subsequently changed by another transaction, each transaction sees only the old data from that particular point in time.
+
+This works in the following way:
+- Each transaction is assigned a unique timestamp at the beginning.
+- Every entry for a data item contains a version that corresponds to the timestamp of the transaction that created this new version.
+- Every transaction records the following pieces of information during its beginning:
+  - The transaction with the highest timestamp that has committed so far (say, Ts)
+  - The number of active transactions that have started but haven’t been committed yet
+
+### Achieving Full Serializable Snapshot Isolation
+
+**Serializable Snapshot Isolation (SSI)** is an enhanced version of **Snapshot Isolation (SI)** that ensures **serializable execution** of transactions.  
+
+It uses **MVCC** to give each transaction a **snapshot** of the database, allowing **reads without locks**. Unlike basic SI, which can lead to anomalies (e.g., **write skew**), SSI tracks **dependencies** between transactions and **detects conflicts** during execution or at **commit time**.  
+
+If a conflict is found, one of the transactions is **aborted** to maintain **serializable consistency**—ensuring the result is equivalent to transactions running **one-by-one (serially)**.  
+
+This approach combines **performance** and **strong consistency** without the overhead of **locking mechanisms**.
+
+## Achieving Atomicity
+
+### Hard to guarantee Atomicity
+
+One common way of achieving atomicity, in this case, is through *journalling* or *write-ahead logging*. In this technique, metadata about the operation are first written to a separate file, along with markers that denote whether an operation has been completed or not. Based on this data, the system can identify which operations were in progress when a failure happened, and drive them to completion either by undoing their effects and aborting them, or by completing the remaining part and committing them. This approach is used extensively in file systems and databases.
+
+The issue of atomicity in a distributed system becomes even more complicated because components (nodes in this context) are separated by the network that is slow and unreliable. Furthermore, we do not only need to make sure that an operation is performed atomically in a node. In most cases, we need to ensure that an operation is performed atomically across multiple nodes. This means that the operation needs to take effect either at all the nodes or at none of them. This problem is also known as atomic commit.
+
+### 2-Phase Commit (2PC)
+
+**2-Phase Commit (2PC)** is a **protocol** used in distributed systems to ensure that all participating nodes in a transaction **either commit or abort** changes, maintaining **atomicity** and **consistency**.  
+
+**How it Works:**  
+1. **Phase 1 - Prepare:**  
+   - The **coordinator** asks all participants if they can **commit**. Each participant responds **Yes** (ready) or **No** (abort).  
+
+2. **Phase 2 - Commit/Abort:**  
+   - If **all say Yes**, the coordinator sends a **commit** command.  
+   - If **any say No**, the coordinator sends an **abort** command.  
+
+This guarantees that **all nodes agree** to commit or roll back, ensuring the **transaction is atomic** across the system.
+
+📌 **Conclusion**: The 2PC protocol satisfies the safety property that ensures all participants always arrive at the same decision (atomicity). However, it does not satisfy the liveness property that implies it will always make progress.
+
+### 3-Phase Commit (3PC)
+
+The main bottleneck of the 2-phase commit protocol was failures of the coordinator leading the system to a blocked state.
+The 2-phase commit problem could be tackled by splitting the first round (voting phase) into 2 sub-rounds, where the coordinator first communicates the votes result to the nodes, waits for an acknowledgment, and then proceeds with the commit or abort message. In this case, the participants would know the result from the votes and complete the protocol independently in case of a coordinator failure.
+
+The main benefit of this protocol is that the coordinator stops being a single point of failure. In case of a coordinator failure, the participants are able to take over and complete the protocol. As a result, the 3PC protocol increases availability and prevents the coordinator from being a single point of failure.
+
+However, this comes at the cost of correctness, since the protocol is vulnerable to failures such as network partitions.
+
+📌 **Conclusion**: The 3PC protocol satisfies the liveness property that ensures it will always make progress, at the cost of violating the safety property of atomicity.
+
+### Quorum-Based Commit Protocol
+
+The main issue with the 3PC protocol occurs at the end of the second phase, where a potential network partition can bring the system to an inconsistent state. This can happen when participants attempt to unblock the protocol by taking the lead without having a picture of the overall system, resulting in a split-brain situation.
+
+A Quorum-Based Commit Protocol is a method used in distributed systems to ensure that a transaction is committed only if a majority (quorum) of the nodes agree to proceed. 
+
+This protocol leverages the concept of a quorum to ensure that different sides of a partition do not arrive at conflicting results.
+
+A node can proceed with committing only if a commit quorum has been formed, while a node can proceed with aborting only if an abort quorum has been formed.
+
+Based on the fact that a node can be in only one of the two quorums, it’s impossible for both quorums to be formed at two different sides of the partition and lead to conflicting results.
+
+A **Quorum-Based Commit Protocol** is a method used in distributed systems to ensure that a transaction is **committed** only if a **majority (quorum)** of the nodes **agree** to proceed.  
+
+**How it Works (Simple Steps):**  
+1. **Propose Commit:**  
+   - The coordinator sends a **request** to all participating nodes, asking if they are ready to **commit** the transaction.  
+
+2. **Vote and Count Responses:**  
+   - Each node **votes** either **Yes** (ready) or **No** (abort).  
+   - The coordinator waits for votes and checks if a **quorum** (more than half) has **agreed** to commit.  
+
+3. **Commit or Abort:**  
+   - If a **quorum agrees**, the transaction is **committed**.  
+   - Otherwise, the transaction is **aborted**.  
+
+**Key Features:**
+- **Majority Rule:** Only needs a **quorum** (e.g., 3 out of 5 nodes) to make progress, even if some nodes **fail**.  
+- **Fault Tolerance:** Can **continue working** as long as the quorum is available, even during partial failures.  
+- **Faster than 2PC/3PC:** No need for all nodes to respond—just a majority.  
+
+**Example:**
+- 5 nodes in a system.  
+- Coordinator sends a commit request.  
+- 3 nodes reply **Yes**, and 2 reply **No**.  
+- Since **3 out of 5** form a **quorum**, the transaction is **committed**.  
+
+**When to Use:**
+- Suitable for **distributed databases** or systems where **availability** is more important than **strict consistency** (e.g., NoSQL databases like Cassandra).
