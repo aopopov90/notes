@@ -189,3 +189,28 @@ A **Quorum-Based Commit Protocol** is a method used in distributed systems to en
 
 **When to Use:**
 - Suitable for **distributed databases** or systems where **availability** is more important than **strict consistency** (e.g., NoSQL databases like Cassandra).
+
+## Long-Lived Transactions and Sagas
+
+Achieving complete isolation between transactions is costly, requiring locks that block progress or aborts that waste effort. Longer transactions amplify these impacts, creating feedback loops that further delay processing.
+
+**Long-Lived Transactions (LLTs):**  
+Some transactions, lasting hours or days, process large data, need human input, or interact with slow systems. Examples include batch jobs, insurance claims, and multi-day product orders. Using standard concurrency mechanisms for LLTs degrades performance as they hold resources for long durations. LLTs often require atomicity but not full isolation, leading to the concept of **sagas**.
+
+**Sagas:**  
+A saga is a sequence of transactions where all must succeed, or none will, preserving atomicity. Each transaction has a compensating transaction for rollback scenarios. Sagas improve performance and availability in distributed systems without strict isolation requirements.
+
+**Example Scenario:**  
+An e-commerce order involves steps like payment authorization, inventory checks, and shipping. A distributed transaction might halt if one step fails, but a saga treats each step as independent, rolling back completed steps if one fails. For example, refunding a payment if shipping fails.
+
+**Isolation Challenges:**  
+Without isolation, orders may interfere—e.g., one order reserves stock, but later fails, releasing stock after another order was rejected for insufficient inventory. While some isolation violations are tolerable, others, like incorrect billing, are more serious.
+
+**Isolation Techniques for Sagas:**  
+1. **Semantic Locks** - Indicate data is in-process to prevent conflicts, released upon saga completion.  
+2. **Commutative Updates** - Use operations whose order doesn’t affect results, avoiding lost updates.  
+3. **Pivot Transactions** - Define boundaries where irreversible transactions occur after failure-prone steps to prevent rollbacks affecting critical updates.
+
+These techniques mitigate isolation issues but add complexity, requiring developers to handle failures carefully. Trade-offs must be considered between saga patterns and database-level transactions.
+
+Sagas improve performance compared to Long-Lived Transactions (LLTs) by breaking down long transactions into smaller, independent steps that can be interleaved with other transactions, rather than locking resources for the entire duration. 
