@@ -1,6 +1,6 @@
 # Consensus and Time in Distributed Systems
 
-## Defining the Consensus Problem
+## Consensus
 
 Many problems in distributed systems involve nodes reaching agreement on a specific value or state, such as whether a transaction is committed or a message is delivered. This fundamental challenge is called the **consensus problem**.  
 
@@ -88,3 +88,46 @@ Steps:
 | **Istio**               | Paxos (via Consul or etcd)        | Service mesh using Paxos through integrated systems like Consul or etcd for service discovery and configuration. |
 | **Kubernetes (K8s)**    | Raft                              | Container orchestration platform using Raft for maintaining consistency in etcd for cluster state and configuration. |
 
+## Time
+
+There is only a single node in a centralized system and, thus, only a single clock. This means we can maintain the illusion of a single, universal time dimension, which can then determine the order of the various events in the single node of the system.
+
+On the other hand, in a distributed system, each node has its own clock. Each one of those clocks may run at a different rate or granularity, which means they will drift apart from each other. Consequently, in a distributed system, “there is no global clock, which could have been used to order events happening on different nodes of the system”.
+
+**Logical clocks** are the alternative category of clocks that do not rely on physical processes to keep track of time. Instead, they make use of messages exchanged between the nodes of the system. This is also the main mechanism of information flow in a distributed system,
+
+## Order
+
+Determining the order of events is a common problem that needs to be solved in software systems.
+
+However, there are two different possible types of ordering: **total** ordering and **partial** ordering.
+
+In a distributed system it’s not that straightforward to impose a total order on events. This is because there are multiple nodes in the system, and events might be happening concurrently on different nodes. As a result, a distributed system can use any valid partial ordering of the events occurring if there is no strict need for a total ordering.
+
+In distributed systems:  
+- **Total Ordering** ensures all events are observed in the same order by every process, preserving a global sequence of events.  
+- **Partial Ordering** guarantees only causally related events are observed in order, allowing concurrent events to occur independently without a fixed sequence.  
+
+**Key Difference**: Total ordering enforces a strict global order, while partial ordering respects causality without imposing a global sequence. Example of causality: reply. to a comment.
+
+Logical clock protocols:
+
+| **Aspect**               | **Lamport Clocks**                           | **Vector Clocks**                              | **Version Vectors**                            | **Dotted Version Vectors**                     |
+|--------------------------|----------------------------------------------|------------------------------------------------|------------------------------------------------|------------------------------------------------|
+| **Purpose**              | Ensure **causal ordering** of events.        | Track **causal relationships** between events. | Manage **version histories** in replicated data. | Track **causal order** with precise conflict resolution. |
+| **Structure**            | Single integer per process.                  | Array of integers, one per process.            | Map of process IDs to version counters.         | Pair of vector clock and **event identifier**. |
+| **Causality Tracking**   | Partial ordering (causality preserved).      | Captures causality more precisely than Lamport. | Tracks causality using version numbers.         | Tracks causality and **unique event IDs**.     |
+| **Concurrency Detection**| Cannot detect concurrency.                   | Detects concurrent events.                      | Detects concurrent versions.                    | Detects concurrent events and conflicts.       |
+| **Complexity**           | **O(1)** per event.                          | **O(N)** per event (N = number of processes).   | **O(N)** per event.                              | **O(N)** per event.                             |
+| **Usage**                | Ordering events in distributed systems.      | Tracking causality in distributed systems.      | Versioning in distributed databases.            | Precise version control with causality.        |
+
+## Distributed Snapshot Problem
+
+The **Distributed Snapshot Problem** addresses how to capture a consistent global state of a distributed system, where processes operate concurrently and communicate via messages. Since there is no global clock, processes cannot instantaneously record their states.  
+
+Chandy-Lamport's **snapshot algorithm** solves this by:  
+1. Initiating snapshots when a process records its state and sends markers to others.  
+2. Recording incoming messages until markers are received.  
+3. Ensuring each process eventually records its state and messages, yielding a consistent global snapshot.  
+
+This helps in applications like checkpointing, debugging, and failure recovery.
