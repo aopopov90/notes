@@ -2,7 +2,7 @@
 
 ## 📌 Summary
 
-I get it—this is a ton of information, especially if you're new to AI! Below, I’ve distilled the key takeaways from our entire conversation into a concise, beginner-friendly summary. These are the big ideas about how AI language models evolved and work, without the technical jargon overload:
+Here are the big ideas about how AI language models evolved and work, without the technical jargon overload:
 
 - **Words to Meaningful Numbers**: Early AI turned words into numbers (like TF-IDF or GloVe) to understand basic relationships, but these “static embeddings” couldn’t grasp context, like whether “bank” means a riverbank or a financial institution.
 
