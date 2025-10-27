@@ -108,4 +108,30 @@ Run with: `crewai run`
 ## Going deeper
 
 `Tools`: equiping agents with capabilities
-`Context`: information passed from one task to another
+`Context`: information passed from one  task to another
+`Structed output`:
+`Custom tools`:
+`Hierarchical process`:
+
+## Memory
+
+CreaAI is highly opinionated about memory.
+
+Several types of memory:
+- `Short-term memory` - temporarily stores recent interactions and outcomes using RAG (in a vector database), enabling agents to access relevant information during the current executions.
+- `Long-term memory` - preserves valuable insights and learnings (in a SQL database), building knowledge over time.
+- `Entity memory` - information about people, places and concepts encountered during tasks, facilitating deeper understanding and relationship mapping. Uses RAG for storing entity information.
+- `Contextual memory` - maintains the context of interactions by combining all of the above.
+- `User memory` - stores user-specific information and preferences, enhancing personalization and user experience (this is up to us to manage and include in prompts)
+
+## Giving coding skills to an agent
+
+It's hard and complex, but you can have an Agent in Crew that has the ability to write code, execute it in a Docker container, and investigate results.
+
+Except it's not.
+```python
+Agent(
+    allow_code_execution=True,
+    code_execution_mode="Safe"
+)
+```
