@@ -135,3 +135,36 @@ Agent(
     code_execution_mode="Safe"
 )
 ```
+
+# LangGraph
+
+## The LangChain ecosystem
+
+- `LangChain` has been around for a long time. It's one of the earliest abstractions to LLMs and chaining.
+- `LangGraph` is a separate offering (independent of LangChain). It is a platform that focuses on stability, resiliency and repeatability in worlds where you have a lot of interconnected processes like an agentic platform.
+- `LangSmith` a separate offering for monitoring. 
+
+LangGraph includes 3 things:
+- LangGraph - framework
+- LangGraph Studio - enterprise
+- LangGraph Platform - enterprise
+
+## Terminology
+
+- Agent Workflows are represented as `graphs`
+- `State` represents the current snapshot of the application
+- `Nodes` are python functions that represent agent logic.
+  They receive the current `State` as input, do something, and return an updated `State`
+- `Edges` are python functions that determine which `Node` to execute next based on the `State`.
+  They can be conditional or fixed.
+
+`Nodes` do the work.
+`Edges` choose what to do next. 
+
+## Five steps to the first Graph
+
+1. Define the `State` class
+2. Start the Graph Builder
+3. Create a `Node`
+4. Create `Edges`
+5. Compile the Graph
