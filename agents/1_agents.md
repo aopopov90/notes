@@ -3,6 +3,8 @@
 
 ## 5 workflow design patterns
 
+[Anthropic identified 5 design patterns:](https://www.anthropic.com/engineering/building-effective-agents)
+
 1. Prompt chaining: decompose into fixed sub-tasks
 2. Routing: direct an input into a specialised sub-task, ensuring separation of concerns
 3. Parallelisation: breaking down tasks and running multiple subtasks concurrently
