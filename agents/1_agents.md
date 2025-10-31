@@ -165,8 +165,25 @@ LangGraph includes 3 things:
 
 ## Five steps to the first Graph
 
+The following happens before you even run your agents:
 1. Define the `State` class
 2. Start the Graph Builder
 3. Create a `Node`
 4. Create `Edges`
 5. Compile the Graph
+
+## More on the State
+
+- `State` is immutable
+- For each field in your State, you can specify a special function called a `reducer`
+- When you return a new `State`, LangGraph uses the `reducer` to combine this field with existing State
+- This enables LangGraph to run multiple nodes concurrently and combine `State` without overwriting
+
+## The Super-Step
+
+- A super-step can be considered a single iteration over the graph nodes. Nodes that run in parallel are part of the same super-step, while nodes that run sequentially belong to separate super-steps.
+- The graph describes one super-step; one interaction between agents and tools to achieve an outcome.
+- Every user interaction is a fresh `graph.invoke(state)` call
+- The reducer handles updating state during a super-step but not between super-steps.
+- Define Graph -> Super-step -> Super-step -> Super-step
+- `Checkpointing` - allow to freeze a record of the state after each super-step
