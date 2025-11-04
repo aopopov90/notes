@@ -187,3 +187,37 @@ The following happens before you even run your agents:
 - The reducer handles updating state during a super-step but not between super-steps.
 - Define Graph -> Super-step -> Super-step -> Super-step
 - `Checkpointing` - allow to freeze a record of the state after each super-step
+
+# AutoGen
+
+- 0.4 released January 2025
+- complete rewrite of 0.2
+- fork of AutoGen - AG2 or AgentOS 2
+- if you `pip install autogen`, you get AG2!
+
+## Products
+
+- AutoGen Core: event-driven framework for scalable multi-agent AI systems
+- AutoGen AgentChat: conversational single and multi-agent applications
+- Studio: low-code / no code app
+- Magentic One CLI: a console-based assistant
+
+## Core Concepts
+
+- Models
+- Messages
+- Agents
+- Teams
+
+## Going Deeper
+
+- Multi-modal
+- Tools from LangChain
+- Structured Outputs
+- Teams
+
+## Introducing MCP
+
+- Autogen makes it easy to use MCP tools, just like LangChain tools.
+- MCP idea is similar to langchain tools but more open
+- MCP is essentially a standard for writing tools. You can easily use an MCP tool created by community.
