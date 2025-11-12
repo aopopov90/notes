@@ -197,10 +197,10 @@ The following happens before you even run your agents:
 
 ## Products
 
-- AutoGen Core: event-driven framework for scalable multi-agent AI systems
-- AutoGen AgentChat: conversational single and multi-agent applications
-- Studio: low-code / no code app
-- Magentic One CLI: a console-based assistant
+- `AutoGen Core`: event-driven framework for scalable multi-agent AI systems
+- `AutoGen AgentChat`: conversational single and multi-agent applications
+- `Studio`: low-code / no code app
+- `Magentic One CLI`: a console-based assistant
 
 ## Core Concepts
 
@@ -208,7 +208,7 @@ The following happens before you even run your agents:
 - Messages
 - Agents
 - Teams
-
+  
 ## Going Deeper
 
 - Multi-modal
@@ -221,3 +221,57 @@ The following happens before you even run your agents:
 - Autogen makes it easy to use MCP tools, just like LangChain tools.
 - MCP idea is similar to langchain tools but more open
 - MCP is essentially a standard for writing tools. You can easily use an MCP tool created by community.
+
+## What is AutoGen Core?
+
+- An Agent interaction framework
+- Agnostic to Agent abstraction
+- Somewhat similar positioning to LangGraph
+- But focus is on managing interactions between distributed and diverse Agents
+- Decouples an Agent's logic from how messages are delivered
+- The framework handles creation and communication
+- The Agents are responsible for their logic - that is not the remit of Autogen Core
+
+## Two Types of Runtime
+
+- Standalone
+- Distributed
+
+# Model Context Protocol (MCP)
+
+## Intro
+
+What it's not:
+- A framework for building agents
+- A fundamental change to how agents work
+- A way to code agents
+
+What it is:
+- A protocol - a standard
+- A simple way to integrate tools, resources, prompts
+- A USB-C port AI applications"
+
+Reasons not to be excited:
+- It's just a standard, it's not tools themselves
+- LangChain already has a big Tools ecosystem
+- You can already make any function into a Tool
+
+Reasons to be excited:
+- Makes it frictionless to integrate
+- It's taking off! Exploding ecosystem
+- HTML was just a standard, too
+
+## MCP Core Concepts
+
+The Three Components:
+- `Host` is an LLM app like Claude or our Agent architecture
+- `MCP Client` lives inside Host and connects 1:1 to MCP Server
+- `MCP Server` provides tools, context and prompts
+
+Example:
+- **Fetch** is an `MCP Server` that searches the web via a headless browser
+- You can configure Claude Desktop (the host) to run an `MCP Client` that then launches the Fetch MCP Server on your computer
+
+Two "Transport" mechanisms:
+- `Stdio` - spawns a process and communicates via standard input/output (for local MCP servers)
+- `SSE` - uses HTTPS connections with streaming (for communication with remote servers)
